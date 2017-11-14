@@ -113,7 +113,7 @@ def scrape_from_suumo(url_input):
 index = 0
 for town_url in town_urls:
     index += 1
-    if index <= 5:
+    if index <= 14:
         continue
     scrape_from_suumo(town_url)
     print(town_url[0], "is finished")
