@@ -128,16 +128,19 @@ df['間取りS'] = 0
 df['間取り'] = df['間取り'].str.replace(u'ワンルーム', u'1') #ワンルームを1に変換
 
 for x in range(len(df)):
-    if 'DK' in df['間取り'][x]:
+    if 'DK' in df['間取り'][x] or 'LDK' in df['間取り'][x] :
         df['間取りDK_LDK'][x] = 1
-    elif 'K' in df['間取り'][x]:
-        df['間取りK'][x] = 1
-    elif 'S' in df['間取り'][x]:
-        df['間取りS'][x] = 1
-
 df['間取り'] = df['間取り'].str.replace(u'DK', u'')
+df['間取り'] = df['間取り'].str.replace(u'LDK', u'')
+
+for x in range(len(df)):
+    if 'K' in df['間取り'][x]:
+        df['間取りK'][x] = 1
 df['間取り'] = df['間取り'].str.replace(u'K', u'')
-df['間取り'] = df['間取り'].str.replace(u'L', u'')
+
+for x in range(len(df)):
+    if 'S' in df['間取り'][x]:
+        df['間取りS'][x] = 1
 df['間取り'] = df['間取り'].str.replace(u'S', u'')
 
 df = df[['マンション名','区','間取り','間取りDK_LDK','間取りK','間取りS','築年数','建物高さ','階','専有面積',
