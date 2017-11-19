@@ -1,9 +1,6 @@
 import pandas as pd
 import numpy as np
 
-import pandas as pd
-import numpy as np
-
 df_chiyoda  = pd.read_csv("./csv_suumo/chiyoda.csv", sep='\t', encoding='utf-16')
 df_chuo     = pd.read_csv("./csv_suumo/chuo.csv", sep='\t', encoding='utf-16')
 df_minato   = pd.read_csv("./csv_suumo/minato.csv", sep='\t', encoding='utf-16')
@@ -33,8 +30,6 @@ df = pd.concat([df_chiyoda, df_chuo, df_minato, df_shinjuku, df_bunkyo, df_shibu
                 df_suginami, df_toshima, df_kita, df_arakawa, df_itabashi, df_nerima, df_adachi,
                 df_katushika, df_edogawa], axis=0, ignore_index=True)
 
-df.drop(['Unnamed: 0'], axis=1, inplace=True)
-
 #立地を「路線, 駅, 徒歩〜分」に分割
 splitted0 = df['立地'].str.split(' 歩', expand=True)
 splitted0.columns = ['立地1', '歩分']
@@ -46,10 +41,6 @@ splitted2 = df['敷/礼/保証/敷引,償却'].str.split('/', expand=True)
 splitted2.columns = ['敷金', '礼金', '保証金', '敷引,償却']
 #分割したカラムを結合
 df = pd.concat([df, splitted1, splitted2], axis=1)
-
-df.drop(['立地','敷/礼/保証/敷引,償却'], axis=1, inplace=True)
-
-df = df.dropna(subset=['賃料'])
 
 df['賃料'] = df['賃料'].str.replace(u'万円', u'')
 df['敷金'] = df['敷金'].str.replace(u'万円', u'')
@@ -92,7 +83,10 @@ df['敷引,償却'] = df['敷引,償却'].astype(int) * 10000
 #賃貸の計算
 df['賃料月額'] = df['賃料'] + df['管理費']
 df['初期費用'] = df['敷金'] + df['礼金'] + df['保証金'] + df['敷引,償却']
-df['年間費用'] = df['賃料月額'] *12 + df['初期費用']
+df['年間費用'] = df['賃料月額'] * 12 + df['初期費用']
+
+df = df.dropna(subset=['賃料'])
+df = df.dropna(subset=['歩分'])
 
 #区の切り出し
 splitted3 = df['住所'].str.split('区', expand=True)
@@ -128,10 +122,11 @@ df['間取りS'] = 0
 df['間取り'] = df['間取り'].str.replace(u'ワンルーム', u'1') #ワンルームを1に変換
 
 for x in range(len(df)):
-    if 'DK' in df['間取り'][x] or 'LDK' in df['間取り'][x] :
+    if 'DK' in df['間取り'][x] or 'LDK' in df['間取り'][x] or 'LK' in df['間取り'][x]:
         df['間取りDK_LDK'][x] = 1
-df['間取り'] = df['間取り'].str.replace(u'DK', u'')
 df['間取り'] = df['間取り'].str.replace(u'LDK', u'')
+df['間取り'] = df['間取り'].str.replace(u'DK', u'')
+df['間取り'] = df['間取り'].str.replace(u'LK', u'')
 
 for x in range(len(df)):
     if 'K' in df['間取り'][x]:
@@ -142,6 +137,7 @@ for x in range(len(df)):
     if 'S' in df['間取り'][x]:
         df['間取りS'][x] = 1
 df['間取り'] = df['間取り'].str.replace(u'S', u'')
+
 
 df = df[['マンション名','区','間取り','間取りDK_LDK','間取りK','間取りS','築年数','建物高さ','階','専有面積',
     '歩分', '路線', '駅', '賃料','管理費','敷金','礼金','保証金','敷引,償却', '賃料月額', '初期費用', '年間費用']]
