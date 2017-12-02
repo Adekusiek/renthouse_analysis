@@ -4,6 +4,8 @@ from urllib.parse import urljoin
 import pandas as pd
 from pandas import Series, DataFrame
 import time
+from datetime import datetime
+import pymysql.cursors
 
 #URL chiyodaku
 town_urls = [["chiyoda", "http://suumo.jp/jj/chintai/ichiran/FR301FC001/?ar=030&bs=040&ta=13&sc=13101&cb=0.0&ct=9999999&et=9999999&cn=9999999&mb=0&mt=9999999&shkr1=03&shkr2=03&shkr3=03&shkr4=03&fw2=&srch_navi=1"],
@@ -36,43 +38,70 @@ def scrape_from_suumo(url_input):
     url = url_input[1]        # set url for each initial page
     urllink = "dummy"
 
-    #Initialization for data column
-    name = []
-    address = []
-    location = []
-    age = []
-    total_story = []
-    floor_story = []
-    floor = []
-    rent = []
-    admin = []
-    others = []
-    area = []
-
     #get data
     while urllink != None:
         urllink = None
-        res = req.urlopen(url)
+        #try until no error
+        res = None
+        while res is None:
+            try:
+                res = req.urlopen(url)
+            except:
+                pass
+
         soup = BeautifulSoup(res, "html.parser")
 
         contents = soup.select("#js-bukkenList .cassetteitem")
         for content in contents:
             for detail_content in content.select(".cassetteitem_other tbody"):
+                c = db.cursor()
+                url_check = detail_content.select("td")[10].a.attrs["href"]
+                sql_get = "select * from appartments where url like '%s';" % url_check
+                c.execute(sql_get)
+                connect = c.fetchall()
+                c.close()
+                # skip if the same link already exists in the database
+                if len(connect) >= 1:
+                    continue
+
                 # in case parking space is recorded
                 if not '階' in detail_content.select("td")[2].string:
                     continue
-                floor_story.append(detail_content.select("td")[2].string)
-                rent.append(detail_content.select("td")[3].string)
-                admin.append(detail_content.select("td")[4].string)
-                others.append(detail_content.select("td")[5].string)
-                floor.append(detail_content.select("td")[6].string)
-                area.append(detail_content.select("td")[7].find(text=True))
-                name.append(content.select_one(".cassetteitem_content-title").string)
-                address.append(content.select_one(".cassetteitem_detail-col1").string)
-                location.append(content.select(".cassetteitem_detail-col2 div")[0].string)
-                age.append(content.select(".cassetteitem_detail-col3 div")[0].string)
-                total_story.append(content.select(".cassetteitem_detail-col3 div")[1].string)
+                detail_url = detail_content.select("td")[10].a.attrs["href"]
+                floor = detail_content.select("td")[2].string
+                rent = detail_content.select("td")[3].string
+                admin_fee = detail_content.select("td")[4].string
+                initial_cost = detail_content.select("td")[5].string
+                floor_plan = detail_content.select("td")[6].string
+                surface = detail_content.select("td")[7].find(text=True)
+                name = content.select_one(".cassetteitem_content-title").string
+                address = content.select_one(".cassetteitem_detail-col1").string
+                age = content.select(".cassetteitem_detail-col3 div")[0].string
+                story = content.select(".cassetteitem_detail-col3 div")[1].string
+                station1 = content.select(".cassetteitem_detail-col2 div")[0].string
+                try:
+                    station2 = content.select(".cassetteitem_detail-col2 div")[1].string
+                except:
+                    station2 = None
 
+                try:
+                    station3 = content.select(".cassetteitem_detail-col2 div")[2].string
+                except:
+                    station3 = None
+
+                c = db.cursor()
+
+                sql_create = "insert into appartments(name, address, station1, station2, station3, age, story,  \
+                                        floor, rent, admin_fee, initial_cost, floor_plan, surface, url, created_at, \
+                                        updated_at) \
+                            values('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');" \
+                            %  (name, address, station1, station2, station3, age, story,  \
+                                floor, rent, admin_fee, initial_cost, floor_plan, surface, detail_url, \
+                                datetime.now(), datetime.now())
+
+                c.execute(sql_create)
+                db.commit()
+                c.close()
 
         # get link to next page
         rel_url_list = soup.select(".pagination_set  .pagination_set-nav > p")
@@ -81,39 +110,19 @@ def scrape_from_suumo(url_input):
                 urllink = rel_url.a.attrs["href"]
         # get absolute path for next page
         url = urljoin(url, urllink)
+        time.sleep(3)
 
-        print("url:", url)
-        time.sleep(1)
 
-    print("No further page found")
 
-    #各リストをシリーズ化
-    name = Series(name)
-    address = Series(address)
-    location = Series(location)
-    age = Series(age)
-    total_story = Series(total_story)
-    floor_story = Series(floor_story)
-    rent = Series(rent)
-    admin = Series(admin)
-    others = Series(others)
-    floor = Series(floor)
-    area = Series(area)
+db = pymysql.connect(
+        host = 'localhost',
+        user = 'root',
+        password = '',
+        db = 'suumo_monthly_rent_development',
+        charset = 'utf8mb4',
+        cursorclass=pymysql.cursors.DictCursor)
 
-    #各シリーズをデータフレーム化
-    suumo_df = pd.concat([name, address, location, age, total_story, floor_story, rent, admin, others, floor, area], axis=1)
-
-    #カラム名
-    suumo_df.columns=['マンション名','住所','立地','築年数','建物高さ','階','賃料','管理費', '敷/礼/保証/敷引,償却','間取り','専有面積']
-
-    #csvファイルとして保存
-    filename = state_name + ".csv"
-    suumo_df.to_csv(filename, sep = '\t',encoding='utf-16')
-
-index = 0
 for town_url in town_urls:
-    index += 1
-    if index <= 7:
-        continue
     scrape_from_suumo(town_url)
-    print(town_url[0], "is finished")
+
+db.close()
