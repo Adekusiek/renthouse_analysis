@@ -164,8 +164,11 @@ df['delta_monthly_rent'] = df['delta_monthly_rent'].astype(int)
 #Update database for pre_monthly_rent and delta_monthly_rent
 for i in range(len(df)):
     c = db.cursor()
-    sql_update = "update appartments set pre_monthly_rent = '%s', delta_monthly_rent = '%s' where url = '%s';" \
-    % (df['pre_monthly_rent'][i], df['delta_monthly_rent'][i], df['url'][i])
+    sql_update = "update appartments set pre_monthly_rent = '%s', delta_monthly_rent = '%s', \
+                    age_int = '%s', surface_float = '%s' where url = '%s';" \
+                    % (df['pre_monthly_rent'][i], df['delta_monthly_rent'][i], \
+                    df['age'][i], df['surface'][i], df['url'][i])
+
     c.execute(sql_update)
     db.commit()
     c.close()

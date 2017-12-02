@@ -56,7 +56,7 @@ def scrape_from_suumo(url_input):
             for detail_content in content.select(".cassetteitem_other tbody"):
                 c = db.cursor()
                 url_check = detail_content.select("td")[10].a.attrs["href"]
-                sql_get = "select * from appartments where url like '%s';" % url_check
+                sql_get = "select * from appartments where url = '%s';" % url_check
                 c.execute(sql_get)
                 connect = c.fetchall()
                 c.close()
@@ -67,7 +67,9 @@ def scrape_from_suumo(url_input):
                 # in case parking space is recorded
                 if not '階' in detail_content.select("td")[2].string:
                     continue
-                detail_url = detail_content.select("td")[10].a.attrs["href"]
+                # without following the detail link changes each access
+                detail_url_raw = detail_content.select("td")[10].a.attrs["href"]
+                detail_url = detail_url_raw.split("?bc=")[0]
                 floor = detail_content.select("td")[2].string
                 rent = detail_content.select("td")[3].string
                 admin_fee = detail_content.select("td")[4].string
@@ -98,8 +100,15 @@ def scrape_from_suumo(url_input):
                             %  (name, address, station1, station2, station3, age, story,  \
                                 floor, rent, admin_fee, initial_cost, floor_plan, surface, detail_url, \
                                 datetime.now(), datetime.now())
+                res1 = None
+                while res1 is None:
+                    try:
+                        res1 = c.execute(sql_create)
+                    except:
+                        print('deadlock')
+                        time.sleep(1)
+                        pass
 
-                c.execute(sql_create)
                 db.commit()
                 c.close()
 
@@ -110,7 +119,7 @@ def scrape_from_suumo(url_input):
                 urllink = rel_url.a.attrs["href"]
         # get absolute path for next page
         url = urljoin(url, urllink)
-        time.sleep(3)
+        time.sleep(1)
 
 
 
