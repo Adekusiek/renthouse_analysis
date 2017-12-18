@@ -7,17 +7,17 @@ db = pymysql.connect(
         host = 'localhost',
         user = 'root',
         password = '',
-        db = 'suumo_monthly_rent_development',
+        db = 'all_monthly_rent_development',
         charset = 'utf8mb4',
         cursorclass=pymysql.cursors.DictCursor)
 
 # get data with not prediction data
 df = pd.read_sql('select * from appartments where pre_monthly_rent is NULL;', con=db)
 
-# preprocess imported data
 #立地を「路線, 駅, 徒歩〜分」に分割
-#Drop rows having multiple "/"
 df = df.drop(df.index[(df['station1'].str.count("/") > 1) | (df['station2'].str.count("/") > 1) | (df['station3'].str.count("/") > 1)])
+df = df.drop(df.index[df['initial_cost'].str.count("/") > 3])
+
 splitted00 = df['station1'].str.split(' 歩', expand=True)
 splitted00.columns = ['location1', 'walk_min1']
 splitted10 = splitted00['location1'].str.split('/', expand=True)
@@ -39,35 +39,34 @@ splitted2.columns = ['shikikin', 'reikin', 'hoshokin', 'shokyaku']
 df = pd.concat([df, splitted00, splitted10, splitted01, splitted11, splitted02, \
                 splitted12, splitted2], axis=1)
 
-df['rent'] = df['rent'].str.replace(u'万円', u'')
+# df['rent'] = df['rent'].str.replace(u'万円', u'')
 df['shikikin'] = df['shikikin'].str.replace(u'万円', u'')
 df['reikin'] = df['reikin'].str.replace(u'万円', u'')
 df['hoshokin'] = df['hoshokin'].str.replace(u'万円', u'')
 df['shokyaku'] = df['shokyaku'].str.replace(u'万円', u'')
-df['admin_fee'] = df['admin_fee'].str.replace(u'円', u'')
-df['age'] = df['age'].str.replace(u'新築', u'0') #新築は築年数0年とする
-df['age'] = df['age'].str.replace(u'築', u'')
-df['age'] = df['age'].str.replace(u'年', u'')
-df['surface'] = df['surface'].str.replace(u'm', u'')
 df['walk_min1'] = df['walk_min1'].str.replace(u'分', u'')
 
 #「-」を0に変換
-df['admin_fee'] = df['admin_fee'].replace('-',0)
+# df['admin_fee'] = df['admin_fee'].replace('-',0)
 df['shikikin'] = df['shikikin'].replace('-',0)
 df['reikin'] = df['reikin'].replace('-',0)
 df['hoshokin'] = df['hoshokin'].replace('-',0)
 df['shokyaku'] = df['shokyaku'].replace('-',0)
+df['shikikin'] = df['shikikin'].replace('--',0)
+df['reikin'] = df['reikin'].replace('--',0)
+df['hoshokin'] = df['hoshokin'].replace('--',0)
+df['shokyaku'] = df['shokyaku'].replace('--',0)
 df['shokyaku'] = df['shokyaku'].replace('実費',0)
 
 #文字列から数値に変換
-df['rent'] = pd.to_numeric(df['rent'])
-df['admin_fee'] = pd.to_numeric(df['admin_fee'])
+# df['rent'] = pd.to_numeric(df['rent'])
+# df['admin_fee'] = pd.to_numeric(df['admin_fee'])
 df['shikikin'] = pd.to_numeric(df['shikikin'])
 df['reikin'] = pd.to_numeric(df['reikin'])
 df['hoshokin'] = pd.to_numeric(df['hoshokin'])
 df['shokyaku'] = pd.to_numeric(df['shokyaku'])
-df['age'] = pd.to_numeric(df['age'])
-df['surface'] = pd.to_numeric(df['surface'])
+# df['age'] = pd.to_numeric(df['age'])
+# df['surface'] = pd.to_numeric(df['surface'])
 df['walk_min1'] = pd.to_numeric(df['walk_min1'])
 
 #単位を合わせるために、admin_fee以外を10000倍。
@@ -90,24 +89,6 @@ splitted3 = df['address'].str.split('区', expand=True)
 splitted3.columns = ['ward', 'address']
 splitted3['ward'] = splitted3['ward'].str.replace('東京都', '')
 df = pd.concat([df, splitted3['ward']], axis=1)
-
-# 階の計算
-splitted4 = df['floor'].str.split('-', expand=True)
-splitted4.columns = ['floor0', 'floor1']
-splitted4['floor0'] = splitted4['floor0'].str.replace(u'B', u'-')
-splitted4['floor0'] = splitted4['floor0'].str.replace(u'階', u'')
-df['floor'] = splitted4['floor0']
-
-# 建物高さの計算
-height = df['story'].str.split('地上', expand=True)
-height.columns = ['story1', 'story2']
-#height['underground'] = height['underground'].str.replace(u'地下', u'')
-height['story1'] = height['story1'].str.replace(u'階建', u'')
-height['story1'] = height['story1'].str.replace(u'地下', u'')
-height['story1'] = height['story1'].str.replace(u'平屋', u'2')
-height['story2'] = height['story2'].str.replace(u'階建', u'')
-height = height.fillna(0)
-df['story'] = pd.to_numeric(height['story2']) + pd.to_numeric(height['story1'])
 
 #indexを振り直す（これをしないと、以下の処理でエラーが出る）
 df = df.reset_index(drop=True)
@@ -132,12 +113,16 @@ df['floor_plan'] = df['floor_plan'].str.replace(u'K', u'')
 df['plan_S'].iloc[df.index[df['floor_plan'].str.count('S') > 0]] = 1
 df['floor_plan'] = df['floor_plan'].str.replace(u'S', u'')
 
+df['floor_plan'] = df['floor_plan'].str.replace(u'R', u'')
+df['floor_plan'] = df['floor_plan'].str.replace(u'+', u'')
+df['floor_plan'] = pd.to_numeric(df['floor_plan'])
 
-df = df[['name','ward','floor_plan','plan_DK','plan_L','plan_K','plan_S','age','story', \
+
+df = df[['id', 'name','ward','floor_plan','plan_DK','plan_L','plan_K','plan_S','age','story', \
     'floor','surface','walk_min1','line1', 'station_name1', 'walk_min2','line2', \
     'station_name2', 'walk_min3','line3', 'station_name3', 'rent','admin_fee', \
     'shikikin', 'reikin','hoshokin','shokyaku', 'monthly_rent', 'total_initial_cost', \
-    'total_annual_cost', 'url']]
+    'total_annual_cost']]
 
 # prepare df_o for prediction
 ward = pd.get_dummies(df['ward'])
@@ -151,7 +136,7 @@ df_o.drop(['monthly_rent'], axis=1, inplace=True)
 data = df_o
 
 # import training result
-clf = joblib.load('suumo_rent_monthly_rent.pkl')
+clf = joblib.load('all_rent_monthly_rent.pkl')
 pre_monthly_rent = clf.predict(data)
 delta = (pre_monthly_rent - y_true)
 pre_monthly_rent = pd.DataFrame(pre_monthly_rent)
@@ -164,13 +149,8 @@ df['delta_monthly_rent'] = df['delta_monthly_rent'].astype(int)
 #Update database for pre_monthly_rent and delta_monthly_rent
 for i in range(len(df)):
     c = db.cursor()
-    sql_update = "update appartments set pre_monthly_rent = '%s', delta_monthly_rent = '%s', \
-                    age_int = '%s', surface_float = '%s' where url = '%s';" \
-                    % (df['pre_monthly_rent'][i], df['delta_monthly_rent'][i], \
-                    df['age'][i], df['surface'][i], df['url'][i])
-
+    sql_update = "update appartments set pre_monthly_rent = '%s', delta_monthly_rent = '%s' where id = %s;" \
+                    % (df['pre_monthly_rent'][i], df['delta_monthly_rent'][i],  df['id'][i])
     c.execute(sql_update)
     db.commit()
     c.close()
-
-db.close()

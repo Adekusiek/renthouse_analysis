@@ -55,8 +55,9 @@ def scrape_from_suumo(url_input):
         for content in contents:
             for detail_content in content.select(".cassetteitem_other tbody"):
                 c = db.cursor()
-                url_check = detail_content.select("td")[10].a.attrs["href"]
-                sql_get = "select * from appartments where url = '%s';" % url_check
+                detail_url_raw = detail_content.select("td")[10].a.attrs["href"]
+                detail_url = detail_url_raw.split("?bc=")[0]
+                sql_get = "select * from appartments where url = '%s';" % detail_url
                 c.execute(sql_get)
                 connect = c.fetchall()
                 c.close()
@@ -68,8 +69,6 @@ def scrape_from_suumo(url_input):
                 if not '階' in detail_content.select("td")[2].string:
                     continue
                 # without following the detail link changes each access
-                detail_url_raw = detail_content.select("td")[10].a.attrs["href"]
-                detail_url = detail_url_raw.split("?bc=")[0]
                 floor = detail_content.select("td")[2].string
                 rent = detail_content.select("td")[3].string
                 admin_fee = detail_content.select("td")[4].string
@@ -91,6 +90,40 @@ def scrape_from_suumo(url_input):
                 except:
                     station3 = None
 
+                # sometimes link is updated on the same appartment. just update url
+                c = db.cursor()
+                sql_update = "update appartments set url = '%s', updated_at = '%s' where name = '%s' and address = '%s' and \
+                        age = '%s' and story = '%s' and floor = '%s' and rent = '%s' and admin_fee = '%s' and \
+                        initial_cost = '%s' and floor_plan = '%s' and surface = '%s';" \
+                        % (detail_url, datetime.now(), name, address, age, story, floor, rent, admin_fee,  \
+                        initial_cost, floor_plan, surface)
+                update_count = c.execute(sql_update)
+                db.commit()
+                c.close()
+                if update_count > 0:
+                    continue
+                # c = db.cursor()
+                # sql_get = "select * from appartments where name = '%s' and address = '%s' and \
+                #         age = '%s' and story = '%s' and floor = '%s' and rent = '%s' and admin_fee = '%s' and \
+                #         initial_cost = '%s' and floor_plan = '%s' and surface = '%s';" \
+                #         % (name, address, age, story, floor, rent, admin_fee,  \
+                #         initial_cost, floor_plan, surface)
+                # c.execute(sql_get)
+                # connect = c.fetchall()
+                # c.close()
+                # if len(connect) >= 1:
+                #     c = db.cursor()
+                #     sql_update = "update appartments set url = '%s', updated_at = '%s' where name = '%s' and address = '%s' and \
+                #             age = '%s' and story = '%s' and floor = '%s' and rent = '%s' and admin_fee = '%s' and \
+                #             initial_cost = '%s' and floor_plan = '%s' and surface = '%s';" \
+                #             % (detail_url, datetime.now(), name, address, age, story, floor, rent, admin_fee,  \
+                #             initial_cost, floor_plan, surface)
+                #     c.execute(sql_update)
+                #     db.commit()
+                #     c.close()
+                #     continue
+
+
                 c = db.cursor()
 
                 sql_create = "insert into appartments(name, address, station1, station2, station3, age, story,  \
@@ -100,10 +133,10 @@ def scrape_from_suumo(url_input):
                             %  (name, address, station1, station2, station3, age, story,  \
                                 floor, rent, admin_fee, initial_cost, floor_plan, surface, detail_url, \
                                 datetime.now(), datetime.now())
-                res1 = None
-                while res1 is None:
+                res2 = None
+                while res2 is None:
                     try:
-                        res1 = c.execute(sql_create)
+                        res2 = c.execute(sql_create)
                     except:
                         print('deadlock')
                         time.sleep(1)
@@ -121,7 +154,13 @@ def scrape_from_suumo(url_input):
         url = urljoin(url, urllink)
         time.sleep(1)
 
-
+# db = pymysql.connect(
+#         host = 'us-cdbr-iron-east-05.cleardb.net',
+#         user = 'be33cda446eba4',
+#         password = '52917aa9',
+#         db = 'heroku_db7f64fb94dfd04',
+#         charset = 'utf8mb4',
+#         cursorclass=pymysql.cursors.DictCursor)
 
 db = pymysql.connect(
         host = 'localhost',
